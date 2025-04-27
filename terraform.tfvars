@@ -1,0 +1,5 @@
+yc_zone             = "ru-central1-a"
+yc_token            = ""
+yc_cloud_id         = ""
+yc_folder_id        = ""
+service_account_id  = ""

@@ -1,0 +1,20 @@
+node_modules*
+build
+*.zip
+.env
+
+tsconfig.tsbuildinfo
+package-lock.json
+__pycache__
+
+# Terraform
+.terraform
+*.tfstate*
+
+.DS_Store
+
+/env/*.json
+**/*.env
+
+**/*key.json
+downloads
