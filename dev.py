@@ -6,6 +6,7 @@ from yt_dlp import YoutubeDL
 # FastAPI
 from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse
+from env import PROXY_URL
 
 app = FastAPI()
 DOWNLOAD_FOLDER = "downloads"
@@ -20,7 +21,9 @@ async def download_video(url: str = Query(..., title="YouTube Video URL")):
     ydl_opts = {
         'outtmpl': os.path.join(DOWNLOAD_FOLDER, '%(title)s.%(ext)s'),
         'format': '18',
-        # 'merge_output_format': 'mp4',
+        'proxy': PROXY_URL,
+        'cookiefile': 'cookies.txt',
+         # 'merge_output_format': 'mp4',
     }
 
     print('Started downloading...')

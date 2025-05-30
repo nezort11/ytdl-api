@@ -2,12 +2,14 @@ import os
 import uuid
 import json
 from yt_dlp import YoutubeDL
+from env import PROXY_URL
 
 STORAGE_PATH = "/function/storage/storage"
 
 # AWS Lambda compatible handler
 def handler(event, context):
     print('event', event)
+    print('context', context)
     event = event or {}
     query = event.get("queryStringParameters") or {}
     url = query.get("url")
@@ -26,6 +28,11 @@ def handler(event, context):
     ydl_opts = {
         'outtmpl': file_path,
         'format': fmt,
+        # https://github.com/yt-dlp/yt-dlp#network-options
+        'proxy': PROXY_URL,
+        'cookiefile': os.path.join(STORAGE_PATH, 'cookies.txt'),
+        'cachedir': False,
+        # 'geo_bypass': True,
         # without ffmpeg - merge_output_format and ffmpeg_location
     }
 

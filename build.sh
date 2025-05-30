@@ -7,7 +7,7 @@ set -e
 
 echo "🧱 Copying source files..."
 mkdir -p ./build
-cp *.py requirements.txt build/
+cp *.py requirements.txt .env cookies.txt build/
 
 echo "🧩 Creating zip..."
 cd build
