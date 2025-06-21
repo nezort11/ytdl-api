@@ -18,6 +18,11 @@ provider "yandex" {
 #   ymq_secret_key = var.ymq_secret_key
 }
 
+resource "yandex_storage_bucket" "ytdl-env" {
+  bucket    = "ytdl-env"
+  max_size  = 1073741824 # 1GB
+}
+
 resource "yandex_storage_bucket" "ytdl-storage" {
   bucket    = "ytdl-storage"
   max_size  = 5368709120 # 5GB
@@ -46,6 +51,13 @@ resource "yandex_function" "ytdl-function" {
     mode = "rw"
     object_storage {
       bucket = yandex_storage_bucket.ytdl-storage.bucket
+    }
+  }
+  mounts {
+    name = "env"
+    mode = "ro"
+    object_storage {
+      bucket = yandex_storage_bucket.ytdl-env.bucket
     }
   }
 }

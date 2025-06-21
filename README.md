@@ -4,6 +4,10 @@ Test youtube videos:
 
 - https://www.youtube.com/watch?v=224plb3bCog
 
+## Cookies
+
+Update `cookies.txt` file with latest cookies in Netscape format.
+
 ## Production
 
 Edit `terraform.tfvars`
@@ -18,7 +22,11 @@ Edit `terraform.tfvars`
 ./.venv/bin/python ./dev.py
 ```
 
+## Debug
+
 http://127.0.0.1:8000/download?url=https://www.youtube.com/watch?v=224plb3bCog
+
+http://127.0.0.1:8000/info?url=https://www.youtube.com/watch?v=224plb3bCog
 
 ```
 Starting uvicorn server...
