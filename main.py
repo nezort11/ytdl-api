@@ -2,18 +2,39 @@ import os
 import uuid
 import json
 from yt_dlp import YoutubeDL
-from env import PROXY_URL
 
-STORAGE_PATH = "/function/storage/storage"
 
-# AWS Lambda compatible handler
+from env import ENV, PROXY_URL, BUCKET_NAME
+
+STORAGE_PATH = "./downloads" if ENV == "development" else "/function/storage/storage"
+ENV_PATH = "." if ENV == "development" else "/function/storage/env"
+
+COOKIE_PATH = os.path.join(ENV_PATH, 'cookies.txt')
+print("COOKIE_PATH", COOKIE_PATH)
+
+
+# Helper function to build yt-dlp options
+def get_yt_dlp_opts(download_path=None, fmt="18"):
+    opts = {
+        'proxy': PROXY_URL,
+        'cookiefile': COOKIE_PATH,
+        'cachedir': False,
+    }
+    if download_path:
+        opts.update({
+            'outtmpl': download_path,
+            'format': fmt
+        })
+    return opts
+
 def handler(event, context):
-    print('event', event)
-    print('context', context)
-    event = event or {}
+    print('event:', event)
+    print('context:', context)
+
+    path = event.get("path", "/")
     query = event.get("queryStringParameters") or {}
     url = query.get("url")
-    fmt = query.get("format", "18")  # default video format — 18 (mp4 360p)
+    fmt = query.get("format", "18")
 
     if not url:
         return {
@@ -21,34 +42,48 @@ def handler(event, context):
             "body": json.dumps({"error": "Missing 'url' parameter"})
         }
 
-    video_id = str(uuid.uuid4())
-    file_name = f"{video_id}.mp4"
-    file_path = os.path.join(STORAGE_PATH, file_name)
-
-    ydl_opts = {
-        'outtmpl': file_path,
-        'format': fmt,
-        # https://github.com/yt-dlp/yt-dlp#network-options
-        'proxy': PROXY_URL,
-        'cookiefile': os.path.join(STORAGE_PATH, 'cookies.txt'),
-        'cachedir': False,
-        # 'geo_bypass': True,
-        # without ffmpeg - merge_output_format and ffmpeg_location
-    }
-
     try:
-        with YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-
-        public_url = f"https://storage.yandexcloud.net/{os.environ['BUCKET_NAME']}/{file_name}"
-
-        return {
-            "statusCode": 200,
-            "body": json.dumps({"url": public_url})
-        }
-
+        if path == "/download":
+            return handle_download(url, fmt)
+        elif path == "/info":
+            return handle_info(url)
+        else:
+            return {
+                "statusCode": 404,
+                "body": json.dumps({"error": "Not found"})
+            }
     except Exception as e:
         return {
             "statusCode": 500,
             "body": json.dumps({"error": str(e)})
         }
+
+def handle_download(url, fmt):
+    video_id = str(uuid.uuid4())
+    file_name = f"{video_id}.mp4"
+    download_path = os.path.join(STORAGE_PATH, file_name)
+
+    ydl_opts = get_yt_dlp_opts(download_path=download_path, fmt=fmt)
+
+    print("Starting downloading...")
+    with YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+
+    public_url = f"https://storage.yandexcloud.net/{BUCKET_NAME}/{file_name}"
+    return {
+        "statusCode": 200,
+        "body": json.dumps({"url": public_url})
+    }
+
+def handle_info(url):
+    ydl_opts = get_yt_dlp_opts()
+
+    with YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+
+    print("Returning full video info...")
+    return {
+        "statusCode": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps(info, default=str)
+    }
