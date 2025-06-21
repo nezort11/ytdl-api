@@ -22,11 +22,31 @@ Edit `terraform.tfvars`
 ./.venv/bin/python ./dev.py
 ```
 
+## Handling
+
+1. Pure function handler
+2. Adaptors (AWS Lambda format)
+
+- Serverless Framework, Chalice (Flask), Mangum (FastAPI), aws-lambda-web-adaptor
+
+## Invoking
+
+- Calling Cloud Function directly
+- Via API Gateway transformer
+
+Incoming format:
+
+- API Gateway REST (v1)
+- API Gateway HTTP API (v2)
+- ALB events
+
 ## Debug
 
 http://127.0.0.1:8000/download?url=https://www.youtube.com/watch?v=224plb3bCog
 
 http://127.0.0.1:8000/info?url=https://www.youtube.com/watch?v=224plb3bCog
+
+https://<id>.y5sm01em.apigw.yandexcloud.net/info?url=https://www.youtube.com/watch?v=224plb3bCog
 
 ```
 Starting uvicorn server...

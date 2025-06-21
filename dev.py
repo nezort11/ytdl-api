@@ -34,7 +34,17 @@ async def download_video(url: str = Query(..., title="YouTube Video URL")):
     print('Returing file response...')
     return FileResponse(filename, media_type='video/mp4', filename=os.path.basename(filename))
 
-STORAGE_PATH = "/function/storage/storage"
+@app.get("/info")
+async def get_video_info(url: str = Query(...)):
+    if not url:
+        raise HTTPException(status_code=400, detail="Missing 'url' parameter")
+
+    ydl_opts = get_yt_dlp_opts()
+    with YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+
+    print('Returning full video info...')
+    return JSONResponse(content=info)
 
 if __name__ == "__main__":
     import uvicorn

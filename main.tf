@@ -55,9 +55,35 @@ resource "yandex_function" "ytdl-function" {
   }
   mounts {
     name = "env"
-    mode = "ro"
+    mode = "rw"
     object_storage {
       bucket = yandex_storage_bucket.ytdl-env.bucket
     }
   }
+}
+
+# API to transform events into API Gateway v1 HTTP format for cloud function
+resource "yandex_api_gateway" "ytdl-function-gateway" {
+  name        = "ytdl-function-gateway"
+  description = "API Gateway for ytdl-function"
+
+  spec = <<EOF
+openapi: 3.0.0
+info:
+  title: ytdl-function-gateway
+  version: 1.0.0
+paths:
+  /download:
+    get:
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: ${yandex_function.ytdl-function.id}
+        service_account_id: ${var.service_account_id}
+  /info:
+    get:
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: ${yandex_function.ytdl-function.id}
+        service_account_id: ${var.service_account_id}
+EOF
 }
