@@ -74,7 +74,7 @@ info:
   version: 1.0.0
 paths:
   /download:
-    get:
+    post:
       x-yc-apigateway-integration:
         type: cloud_functions
         function_id: ${yandex_function.ytdl-function.id}
