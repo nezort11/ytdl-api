@@ -19,6 +19,7 @@ def get_yt_dlp_opts(download_path=None, fmt="18"):
         'proxy': PROXY_URL,
         'cookiefile': COOKIE_PATH,
         'cachedir': False,
+        'noplaylist': True
     }
     if download_path:
         opts.update({
