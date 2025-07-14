@@ -46,6 +46,8 @@ http://127.0.0.1:8000/download?url=https://www.youtube.com/watch?v=224plb3bCog
 
 http://127.0.0.1:8000/info?url=https://www.youtube.com/watch?v=224plb3bCog
 
+http://127.0.0.1:8000/playlist?url=https://www.youtube.com/playlist?list=PLsVXlJ_NFVRgSSr6ki-BThf7CY3mTMEHI
+
 https://<id>.y5sm01em.apigw.yandexcloud.net/info?url=https://www.youtube.com/watch?v=224plb3bCog
 
 ```

@@ -7,6 +7,7 @@ from yt_dlp import YoutubeDL
 from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse
 from env import PROXY_URL
+from main import get_yt_dlp_opts
 
 app = FastAPI()
 DOWNLOAD_FOLDER = "downloads"
@@ -45,6 +46,45 @@ async def get_video_info(url: str = Query(...)):
 
     print('Returning full video info...')
     return JSONResponse(content=info)
+
+@app.get("/playlist")
+async def get_playlist_info(
+    url: str = Query(..., title="YouTube Playlist URL"),
+    limit: int = Query(5, ge=1, title="Number of latest videos to return")
+):
+    """
+    Return the `limit` most-recently uploaded videos in a playlist.
+    """
+    if not url:
+        raise HTTPException(status_code=400, detail="Missing 'url' parameter")
+
+    ydl_opts = get_yt_dlp_opts()
+    with YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+
+    entries = info.get("entries") or []
+    filtered = [e for e in entries if e and e.get("upload_date")]
+    filtered.sort(key=lambda e: e["upload_date"], reverse=True)
+    latest = filtered[:limit]
+
+    videos = [
+        {
+            "id": e.get("id"),
+            "title": e.get("title"),
+            "url": e.get("webpage_url"),
+            "uploader": e.get("uploader"),
+            "upload_date": e.get("upload_date"),
+            "duration": e.get("duration"),
+        }
+        for e in latest
+    ]
+
+    return JSONResponse(content={
+        "playlist_id": info.get("id"),
+        "title": info.get("title"),
+        "entries_returned": len(videos),
+        "videos": videos
+    })
 
 if __name__ == "__main__":
     import uvicorn

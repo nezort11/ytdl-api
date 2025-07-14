@@ -48,6 +48,10 @@ def handler(event, context):
             return handle_download(url, fmt)
         elif path == "/info":
             return handle_info(url)
+        elif path == "/playlist":
+            # Optional ?limit=5 query parameter
+            limit = int(query.get("limit", 5))
+            return handle_playlist(url, limit)
         else:
             return {
                 "statusCode": 404,
@@ -87,4 +91,48 @@ def handle_info(url):
         "statusCode": 200,
         "headers": {"Content-Type": "application/json"},
         "body": json.dumps(info, default=str)
+    }
+
+def handle_playlist(url, limit=5):
+    """
+    Extract playlist metadata and return the 'limit' most
+    recently uploaded videos.
+    """
+    ydl_opts = get_yt_dlp_opts()
+
+    with YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+
+    # `entries` is a list of video‐info dicts
+    entries = info.get("entries") or []
+
+    # Filter out any None entries and those without upload_date
+    filtered = [e for e in entries if e and e.get("upload_date")]
+
+    # Sort by upload_date descending (newest first)
+    filtered.sort(key=lambda e: e["upload_date"], reverse=True)
+
+    latest = filtered[:limit]
+
+    # Only return a subset of fields per video
+    result = []
+    for e in latest:
+        result.append({
+            "id": e.get("id"),
+            "title": e.get("title"),
+            "url": e.get("webpage_url"),
+            "uploader": e.get("uploader"),
+            "upload_date": e.get("upload_date"),
+            "duration": e.get("duration"),
+        })
+
+    return {
+        "statusCode": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps({
+            "playlist_id": info.get("id"),
+            "title": info.get("title"),
+            "entries_returned": len(result),
+            "videos": result
+        }, default=str)
     }
