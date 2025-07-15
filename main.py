@@ -14,18 +14,20 @@ print("COOKIE_PATH", COOKIE_PATH)
 
 
 # Helper function to build yt-dlp options
-def get_yt_dlp_opts(download_path=None, fmt="18"):
+def get_yt_dlp_opts(download_path=None, fmt="18", playlistend=None):
     opts = {
         'proxy': PROXY_URL,
         'cookiefile': COOKIE_PATH,
         'cachedir': False,
-        'noplaylist': True
+        'noplaylist': False if playlistend else True,  # allow playlists
     }
     if download_path:
         opts.update({
             'outtmpl': download_path,
             'format': fmt
         })
+    if playlistend:
+        opts['playlistend'] = playlistend
     return opts
 
 def handler(event, context):
@@ -98,7 +100,8 @@ def handle_playlist(url, limit=5):
     Extract playlist metadata and return the 'limit' most
     recently uploaded videos.
     """
-    ydl_opts = get_yt_dlp_opts()
+    ydl_opts = get_yt_dlp_opts(playlistend=limit)
+    ydl_opts["playlistreverse"] = True
 
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
