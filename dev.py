@@ -5,7 +5,7 @@ import json
 from yt_dlp import YoutubeDL
 # FastAPI
 from fastapi import FastAPI, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from env import PROXY_URL
 from main import get_yt_dlp_opts
 
@@ -58,7 +58,8 @@ async def get_playlist_info(
     if not url:
         raise HTTPException(status_code=400, detail="Missing 'url' parameter")
 
-    ydl_opts = get_yt_dlp_opts()
+    ydl_opts = get_yt_dlp_opts(playlistend=limit)
+    ydl_opts["playlistreverse"] = True
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
 
