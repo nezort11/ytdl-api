@@ -67,7 +67,8 @@ def handler(event, context):
 
 def handle_download(url, fmt):
     video_id = str(uuid.uuid4())
-    file_name = f"{video_id}.mp4"
+    ext = "m4a" if fmt == "m4a" else "mp4"
+    file_name = f"{str(uuid.uuid4())}.{ext}"
     download_path = os.path.join(STORAGE_PATH, file_name)
 
     ydl_opts = get_yt_dlp_opts(download_path=download_path, fmt=fmt)
@@ -101,7 +102,6 @@ def handle_playlist(url, limit=5):
     recently uploaded videos.
     """
     ydl_opts = get_yt_dlp_opts(playlistend=limit)
-    ydl_opts["playlistreverse"] = True
 
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)

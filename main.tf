@@ -85,5 +85,11 @@ paths:
         type: cloud_functions
         function_id: ${yandex_function.ytdl-function.id}
         service_account_id: ${var.service_account_id}
+  /playlist:
+    get:
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: ${yandex_function.ytdl-function.id}
+        service_account_id: ${var.service_account_id}
 EOF
 }

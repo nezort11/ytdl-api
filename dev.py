@@ -59,7 +59,7 @@ async def get_playlist_info(
         raise HTTPException(status_code=400, detail="Missing 'url' parameter")
 
     ydl_opts = get_yt_dlp_opts(playlistend=limit)
-    ydl_opts["playlistreverse"] = True
+    # ydl_opts["playlistreverse"] = True
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
 
