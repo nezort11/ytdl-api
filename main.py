@@ -73,8 +73,12 @@ def handle_download(url, fmt):
 
     ydl_opts = get_yt_dlp_opts(download_path=download_path, fmt=fmt)
 
-    print("Starting downloading...")
     with YoutubeDL(ydl_opts) as ydl:
+        print("Getting video info...")
+        info = ydl.extract_info(url, download=False)
+        print(json.dumps(info.get("formats", []), indent=2))
+
+        print("Starting downloading...")
         ydl.download([url])
 
     public_url = f"https://storage.yandexcloud.net/{BUCKET_NAME}/{file_name}"
