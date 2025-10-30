@@ -32,7 +32,7 @@ async def download_video(url: str = Query(..., title="YouTube Video URL")):
         info = ydl.extract_info(url, download=True)
         filename = ydl.prepare_filename(info).rsplit(".", 1)[0] + ".mp4"
 
-    print('Returing file response...')
+    print('Returning file response...')
     return FileResponse(filename, media_type='video/mp4', filename=os.path.basename(filename))
 
 @app.get("/info")
@@ -59,6 +59,7 @@ async def get_playlist_info(
         raise HTTPException(status_code=400, detail="Missing 'url' parameter")
 
     ydl_opts = get_yt_dlp_opts(playlistend=limit)
+    # ydl_opts = get_yt_dlp_opts(playliststart=offset + 1, playlistend=offset + limit)
     # ydl_opts["playlistreverse"] = True
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)

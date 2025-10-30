@@ -93,6 +93,11 @@ def handle_info(url):
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
 
+    # print("Scraping youtube video title...")
+    # title = scrape_video_title(url)
+    # print("Scraped youtube title:", title)
+    # info["title"] = title
+
     print("Returning full video info...")
     return {
         "statusCode": 200,
@@ -107,23 +112,28 @@ def handle_playlist(url, limit=5):
     """
     ydl_opts = get_yt_dlp_opts(playlistend=limit)
 
+    print("Extracting playlist info...")
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
 
     # `entries` is a list of video‐info dicts
     entries = info.get("entries") or []
+    print("entries length:", len(entries))
 
     # Filter out any None entries and those without upload_date
     filtered = [e for e in entries if e and e.get("upload_date")]
+    print("filtered entries length:", len(filtered))
 
     # Sort by upload_date descending (newest first)
     filtered.sort(key=lambda e: e["upload_date"], reverse=True)
 
     latest = filtered[:limit]
+    print("latest entries length:", len(latest))
 
     # Only return a subset of fields per video
     result = []
     for e in latest:
+        print("element:", e)
         result.append({
             "id": e.get("id"),
             "title": e.get("title"),
