@@ -38,8 +38,8 @@ resource "yandex_function" "ytdl-function" {
     BUCKET_NAME = yandex_storage_bucket.ytdl-storage.bucket
   }
 
-  memory = 2048
-  execution_timeout = 120
+  memory = 2048 # 2GB
+  execution_timeout = 600 # 10 minutes
   concurrency = 3
 
   content {
