@@ -79,6 +79,13 @@ paths:
         type: cloud_functions
         function_id: ${yandex_function.ytdl-function.id}
         service_account_id: ${var.service_account_id}
+  /download-url:
+    get:
+      summary: Get direct YouTube download URL (no gateway timeout)
+      x-yc-apigateway-integration:
+        type: cloud_functions
+        function_id: ${yandex_function.ytdl-function.id}
+        service_account_id: ${var.service_account_id}
   /info:
     get:
       x-yc-apigateway-integration:

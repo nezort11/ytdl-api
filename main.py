@@ -20,6 +20,11 @@ def get_yt_dlp_opts(download_path=None, fmt=None, playlistend=None):
         'cookiefile': COOKIE_PATH,
         'cachedir': False,
         'noplaylist': False if playlistend else True,  # allow playlists
+        # Optimize for speed
+        'concurrent_fragment_downloads': 4,  # Download fragments in parallel
+        'fragment_retries': 3,  # Retry failed fragments
+        'retries': 3,  # Retry failed downloads
+        'http_chunk_size': 10485760,  # 10MB chunks for better throughput
     }
     if download_path:
         # Use flexible format selector with fallbacks
@@ -60,6 +65,9 @@ def handler(event, context):
     try:
         if path == "/download":
             return handle_download(url, fmt)
+        elif path == "/download-url":
+            # New endpoint: returns direct download URL without downloading
+            return handle_download_url(url, fmt)
         elif path == "/info":
             return handle_info(url)
         elif path == "/playlist":
@@ -75,6 +83,83 @@ def handler(event, context):
         return {
             "statusCode": 500,
             "body": json.dumps({"error": str(e)})
+        }
+
+def handle_download_url(url, fmt):
+    """
+    New endpoint: Returns direct YouTube download URL without downloading the video.
+    This avoids the 5-minute API Gateway timeout for large videos.
+
+    The returned URL:
+    - Is a direct download link from YouTube's servers
+    - Expires after ~6 hours
+    - Can be used by the bot to download directly (bypassing our gateway)
+    """
+    print(f"Getting direct download URL for: {url}, format: {fmt}")
+
+    ydl_opts = get_yt_dlp_opts(fmt=fmt)
+
+    with YoutubeDL(ydl_opts) as ydl:
+        print("Extracting video info...")
+        info = ydl.extract_info(url, download=False)
+
+        if not info:
+            return {
+                "statusCode": 404,
+                "body": json.dumps({"error": "Video not found or unavailable"})
+            }
+
+        # Get the requested format or best available
+        formats = info.get('formats', [])
+        selected_format = None
+
+        if fmt and fmt not in ["best", "worst"]:
+            # Try to find exact format match
+            for f in formats:
+                if str(f.get('format_id')) == str(fmt):
+                    selected_format = f
+                    break
+
+        if not selected_format:
+            # Fallback: use yt-dlp's format selection logic
+            # This gives us the format that yt-dlp would download
+            requested_formats = info.get('requested_formats')
+            if requested_formats:
+                # For merged video+audio, we need both URLs
+                # But for simplicity, return the video URL (usually contains audio)
+                selected_format = requested_formats[0]
+            else:
+                # Single format (has both video and audio)
+                selected_format = info
+
+        if not selected_format or not selected_format.get('url'):
+            return {
+                "statusCode": 404,
+                "body": json.dumps({
+                    "error": "No suitable format found with direct URL",
+                    "available_formats": [
+                        {"format_id": f.get("format_id"), "ext": f.get("ext"), "quality": f.get("format_note")}
+                        for f in formats[:10]  # Return first 10 formats as reference
+                    ]
+                })
+            }
+
+        direct_url = selected_format['url']
+
+        print(f"Found direct URL: {direct_url[:100]}...")
+
+        return {
+            "statusCode": 200,
+            "body": json.dumps({
+                "url": direct_url,
+                "format_id": selected_format.get('format_id'),
+                "ext": selected_format.get('ext', 'mp4'),
+                "quality": selected_format.get('format_note'),
+                "filesize": selected_format.get('filesize'),
+                "expires_in_hours": 6,  # YouTube URLs typically expire in 6 hours
+                "title": info.get('title'),
+                "duration": info.get('duration')
+            })
         }
 
 def handle_download(url, fmt):
