@@ -14,7 +14,7 @@ print("COOKIE_PATH", COOKIE_PATH)
 
 
 # Helper function to build yt-dlp options
-def get_yt_dlp_opts(download_path=None, fmt="18", playlistend=None):
+def get_yt_dlp_opts(download_path=None, fmt=None, playlistend=None):
     opts = {
         'proxy': PROXY_URL,
         'cookiefile': COOKIE_PATH,
@@ -22,9 +22,21 @@ def get_yt_dlp_opts(download_path=None, fmt="18", playlistend=None):
         'noplaylist': False if playlistend else True,  # allow playlists
     }
     if download_path:
+        # Use flexible format selector with fallbacks
+        # Priority: format 18 (360p ~10MB) -> 480p or lower -> worst available
+        # This keeps file sizes reasonable (10-30 MB typical) instead of downloading huge HD files
+        if fmt and fmt not in ["best", "worst"]:
+            # If specific format requested, try it with fallbacks
+            format_selector = f"{fmt}/bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480][ext=mp4]/best[height<=480]/worst"
+        else:
+            # Default: prioritize format 18 (360p), fallback to 480p max, then worst
+            format_selector = "18/bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480][ext=mp4]/best[height<=480]/worst"
+
         opts.update({
             'outtmpl': download_path,
-            'format': fmt
+            'format': format_selector,
+            # Merge video+audio into single file if needed
+            'merge_output_format': 'mp4',
         })
     if playlistend:
         opts['playlistend'] = playlistend
@@ -37,7 +49,7 @@ def handler(event, context):
     path = event.get("path", "/")
     query = event.get("queryStringParameters") or {}
     url = query.get("url")
-    fmt = query.get("format", "18")
+    fmt = query.get("format")  # Default None -> will use format 18 (360p) fallback
 
     if not url:
         return {
