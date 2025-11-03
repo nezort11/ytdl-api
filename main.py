@@ -109,37 +109,89 @@ def handle_download_url(url, fmt):
                 "body": json.dumps({"error": "Video not found or unavailable"})
             }
 
-        # Get the requested format or best available
         formats = info.get('formats', [])
         selected_format = None
 
+        # Filter formats to only include those with direct URLs (not HLS/DASH)
+        # HLS (m3u8) and DASH (mpd) formats require fragment assembly
+        # Also exclude storyboards (preview images, not actual video)
+        direct_formats = [
+            f for f in formats
+            if f.get('url')
+            and f.get('protocol') not in ['m3u8', 'm3u8_native', 'http_dash_segments']
+            and not f.get('url', '').endswith('.m3u8')
+            and not f.get('url', '').endswith('.mpd')
+            and 'manifest' not in f.get('url', '').lower()
+            and 'storyboard' not in f.get('format_note', '').lower()
+            and not f.get('format_id', '').startswith('sb')  # sb0, sb1, sb2, sb3 are storyboards
+            and f.get('vcodec', 'none') != 'none'  # Must have video codec
+        ]
+
+        print(f"Found {len(direct_formats)} video formats with direct URLs out of {len(formats)} total")
+
+        # If no direct formats available, this video requires HLS/DASH download
+        if not direct_formats:
+            print("No direct download URLs available - video uses HLS/DASH streaming only")
+            return {
+                "statusCode": 400,
+                "body": json.dumps({
+                    "error": "This video only supports HLS/DASH streaming formats (no direct download URLs available)",
+                    "youtube_forcing_streaming": True,
+                    "suggestion": "Use the old /download POST endpoint which handles HLS/DASH downloads properly",
+                    "video_title": info.get('title'),
+                    "video_id": info.get('id')
+                })
+            }
+
         if fmt and fmt not in ["best", "worst"]:
-            # Try to find exact format match
-            for f in formats:
+            # Try to find exact format match with direct URL
+            for f in direct_formats:
                 if str(f.get('format_id')) == str(fmt):
                     selected_format = f
+                    print(f"Found exact format match: {fmt}")
                     break
 
         if not selected_format:
-            # Fallback: use yt-dlp's format selection logic
-            # This gives us the format that yt-dlp would download
-            requested_formats = info.get('requested_formats')
-            if requested_formats:
-                # For merged video+audio, we need both URLs
-                # But for simplicity, return the video URL (usually contains audio)
-                selected_format = requested_formats[0]
+            # Select best format with direct URL
+            # Prefer formats with both video and audio (acodec != 'none' and vcodec != 'none')
+            combined_formats = [
+                f for f in direct_formats
+                if f.get('vcodec', 'none') != 'none' and f.get('acodec', 'none') != 'none'
+            ]
+
+            if combined_formats:
+                # Sort by quality (resolution * fps) and select best
+                combined_formats.sort(
+                    key=lambda f: (f.get('height', 0) * f.get('fps', 1), f.get('tbr', 0)),
+                    reverse=True
+                )
+                selected_format = combined_formats[0]
+                print(f"Selected best combined format: {selected_format.get('format_id')} ({selected_format.get('height')}p)")
             else:
-                # Single format (has both video and audio)
-                selected_format = info
+                # Fallback: use format 18 (360p, always has direct URL and combined audio+video)
+                format_18 = next((f for f in direct_formats if f.get('format_id') == '18'), None)
+                if format_18:
+                    selected_format = format_18
+                    print("Using fallback format 18 (360p)")
+                elif direct_formats:
+                    # Last resort: any direct format
+                    selected_format = direct_formats[0]
+                    print(f"Using first available direct format: {selected_format.get('format_id')}")
 
         if not selected_format or not selected_format.get('url'):
             return {
                 "statusCode": 404,
                 "body": json.dumps({
-                    "error": "No suitable format found with direct URL",
+                    "error": "No suitable format found with direct URL. All formats require HLS/DASH streaming.",
+                    "suggestion": "Try using the old /download endpoint for this video",
                     "available_formats": [
-                        {"format_id": f.get("format_id"), "ext": f.get("ext"), "quality": f.get("format_note")}
-                        for f in formats[:10]  # Return first 10 formats as reference
+                        {
+                            "format_id": f.get("format_id"),
+                            "ext": f.get("ext"),
+                            "quality": f.get("format_note"),
+                            "protocol": f.get("protocol")
+                        }
+                        for f in formats[:10]
                     ]
                 })
             }
@@ -156,9 +208,12 @@ def handle_download_url(url, fmt):
                 "ext": selected_format.get('ext', 'mp4'),
                 "quality": selected_format.get('format_note'),
                 "filesize": selected_format.get('filesize'),
-                "expires_in_hours": 6,  # YouTube URLs typically expire in 6 hours
+                "expires_in_hours": 6,
                 "title": info.get('title'),
-                "duration": info.get('duration')
+                "duration": info.get('duration'),
+                "width": selected_format.get('width'),
+                "height": selected_format.get('height'),
+                "fps": selected_format.get('fps')
             })
         }
 
