@@ -51,8 +51,22 @@ def handler(event, context):
     print('event:', event)
     print('context:', context)
 
-    path = event.get("path", "/")
+    # Support both API Gateway (with path) and direct invocation (no path)
+    path = event.get("path", "/download")  # Default to /download for direct invocation
+
+    # For direct invocation, parameters might be in different places
     query = event.get("queryStringParameters") or {}
+
+    # Also check httpMethod - if POST, body might contain params
+    http_method = event.get("httpMethod", "POST")
+    if http_method == "POST" and event.get("body"):
+        try:
+            body = json.loads(event.get("body", "{}"))
+            # Merge body params with query params (body takes precedence)
+            query = {**query, **body}
+        except:
+            pass
+
     url = query.get("url")
     fmt = query.get("format")  # Default None -> will use format 18 (360p) fallback
 
@@ -77,7 +91,7 @@ def handler(event, context):
         else:
             return {
                 "statusCode": 404,
-                "body": json.dumps({"error": "Not found"})
+                "body": json.dumps({"error": "Not found", "path": path})
             }
     except Exception as e:
         return {
