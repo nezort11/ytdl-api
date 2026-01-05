@@ -277,6 +277,7 @@ def handle_playlist(url, limit=5):
     recently uploaded videos.
     """
     ydl_opts = get_yt_dlp_opts(playlistend=limit)
+    ydl_opts['ignoreerrors'] = True  # Skip unavailable/private videos
 
     print("Extracting playlist info...")
     with YoutubeDL(ydl_opts) as ydl:
