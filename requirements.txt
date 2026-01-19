@@ -1,2 +1,4 @@
-yt-dlp>=2025.10.22
+# Must bump regularly cuz of youtube API changes
+# https://pypi.org/project/yt-dlp/
+yt-dlp>=2025.12.8
 python-dotenv
