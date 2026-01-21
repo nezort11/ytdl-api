@@ -28,6 +28,12 @@ resource "yandex_storage_bucket" "ytdl-storage" {
   max_size  = 5368709120 # 5GB
 }
 
+resource "yandex_storage_object" "ytdl-function-zip" {
+  bucket = yandex_storage_bucket.ytdl-storage.id
+  key    = "ytdl-function-${filemd5("ytdl-function.zip")}.zip"
+  source = "ytdl-function.zip"
+}
+
 resource "yandex_function" "ytdl-function" {
   name       = "ytdl-function"
   user_hash  = filebase64sha256("ytdl-function.zip")
@@ -43,8 +49,9 @@ resource "yandex_function" "ytdl-function" {
   execution_timeout = 600 # 10 minutes
   concurrency = 3
 
-  content {
-    zip_filename = "ytdl-function.zip"
+  package {
+    bucket_name = yandex_storage_bucket.ytdl-storage.bucket
+    object_name = yandex_storage_object.ytdl-function-zip.key
   }
 
   mounts {
