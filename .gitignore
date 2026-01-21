@@ -19,3 +19,4 @@ __pycache__
 
 **/*key.json
 downloads
+terraform.tfvars

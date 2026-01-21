@@ -10,7 +10,7 @@ Update `cookies.txt` file with latest cookies in Netscape format.
 
 ## Production
 
-Edit `terraform.tfvars`
+Environment variables are managed in `.env`.
 
 ```sh
 ./deploy.sh
