@@ -36,6 +36,7 @@ resource "yandex_function" "ytdl-function" {
   service_account_id = var.service_account_id
   environment = {
     BUCKET_NAME = yandex_storage_bucket.ytdl-storage.bucket
+    ENV         = "production"
   }
 
   memory = 2048 # 2GB
