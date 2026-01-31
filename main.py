@@ -3,6 +3,20 @@ import uuid
 import json
 from yt_dlp import YoutubeDL
 
+import logging
+import sys
+import time
+from pythonjsonlogger import jsonlogger
+
+logger = logging.getLogger()
+logHandler = logging.StreamHandler(sys.stdout)
+formatter = jsonlogger.JsonFormatter(
+    "%(asctime)s %(levelname)s %(message)s %(name)s",
+    json_ensure_ascii=False
+)
+logHandler.setFormatter(formatter)
+logger.addHandler(logHandler)
+logger.setLevel(logging.INFO)
 
 from env import ENV, PROXY_URL, BUCKET_NAME
 
@@ -10,7 +24,7 @@ STORAGE_PATH = "./downloads" if ENV == "development" else "/function/storage/sto
 ENV_PATH = "." if ENV == "development" else "/function/storage/env"
 
 COOKIE_PATH = os.path.join(ENV_PATH, 'cookies.txt')
-print("COOKIE_PATH", COOKIE_PATH)
+logger.info(f"COOKIE_PATH: {COOKIE_PATH}")
 
 
 # Helper function to build yt-dlp options
@@ -21,11 +35,28 @@ def get_yt_dlp_opts(download_path=None, fmt=None, playlistend=None):
         'cachedir': False,
         'noplaylist': False if playlistend else True,  # allow playlists
         # Optimize for speed
-        'concurrent_fragment_downloads': 4,  # Download fragments in parallel
+        'concurrent_fragment_downloads': 1,  # Download fragments sequentially to avoid IP blocking
         'fragment_retries': 3,  # Retry failed fragments
         'retries': 3,  # Retry failed downloads
         'http_chunk_size': 10485760,  # 10MB chunks for better throughput
     }
+
+    # Add PO Token and Visitor Data if available (bypasses bot detection)
+    po_token = os.getenv("PO_TOKEN")
+    visitor_data = os.getenv("VISITOR_DATA")
+
+    if po_token:
+        logger.info("Using PO Token for YouTube download")
+        opts.setdefault('extractor_args', {})
+        opts['extractor_args']['youtube'] = {
+            'po_token': [po_token],
+            'player_client': ['web'], # PO Token usually requires 'web' client
+        }
+
+        if visitor_data:
+            logger.info("Using Visitor Data for YouTube download")
+            opts['extractor_args']['youtube']['visitor_data'] = [visitor_data]
+
     if download_path:
         # Use flexible format selector with fallbacks
         # Priority: format 18 (360p ~10MB) -> 480p or lower -> worst available
@@ -48,8 +79,8 @@ def get_yt_dlp_opts(download_path=None, fmt=None, playlistend=None):
     return opts
 
 def handler(event, context):
-    print('event:', event)
-    print('context:', context)
+    logger.info("Handling request", extra={"event": "request_start", "event_data": event})
+    # logger.debug('context:', context)
 
     # Support both API Gateway (with path) and direct invocation (no path)
     path = event.get("path", "/download")  # Default to /download for direct invocation
@@ -109,12 +140,17 @@ def handle_download_url(url, fmt):
     - Expires after ~6 hours
     - Can be used by the bot to download directly (bypassing our gateway)
     """
-    print(f"Getting direct download URL for: {url}, format: {fmt}")
+    logger.info("Getting direct download URL", extra={
+        "event": "download_url_start",
+        "url": url,
+        "format": fmt
+    })
+    start_time = time.time()
 
     ydl_opts = get_yt_dlp_opts(fmt=fmt)
 
     with YoutubeDL(ydl_opts) as ydl:
-        print("Extracting video info...")
+        logger.info("Extracting video info...")
         info = ydl.extract_info(url, download=False)
 
         if not info:
@@ -141,11 +177,11 @@ def handle_download_url(url, fmt):
             and f.get('vcodec', 'none') != 'none'  # Must have video codec
         ]
 
-        print(f"Found {len(direct_formats)} video formats with direct URLs out of {len(formats)} total")
+        logger.info(f"Found {len(direct_formats)} video formats with direct URLs out of {len(formats)} total")
 
         # If no direct formats available, this video requires HLS/DASH download
         if not direct_formats:
-            print("No direct download URLs available - video uses HLS/DASH streaming only")
+            logger.warn("No direct download URLs available - video uses HLS/DASH streaming only")
             return {
                 "statusCode": 400,
                 "body": json.dumps({
@@ -162,7 +198,7 @@ def handle_download_url(url, fmt):
             for f in direct_formats:
                 if str(f.get('format_id')) == str(fmt):
                     selected_format = f
-                    print(f"Found exact format match: {fmt}")
+                    logger.info(f"Found exact format match: {fmt}")
                     break
 
         if not selected_format:
@@ -180,17 +216,17 @@ def handle_download_url(url, fmt):
                     reverse=True
                 )
                 selected_format = combined_formats[0]
-                print(f"Selected best combined format: {selected_format.get('format_id')} ({selected_format.get('height')}p)")
+                logger.info(f"Selected best combined format: {selected_format.get('format_id')} ({selected_format.get('height')}p)")
             else:
                 # Fallback: use format 18 (360p, always has direct URL and combined audio+video)
                 format_18 = next((f for f in direct_formats if f.get('format_id') == '18'), None)
                 if format_18:
                     selected_format = format_18
-                    print("Using fallback format 18 (360p)")
+                    logger.info("Using fallback format 18 (360p)")
                 elif direct_formats:
                     # Last resort: any direct format
                     selected_format = direct_formats[0]
-                    print(f"Using first available direct format: {selected_format.get('format_id')}")
+                    logger.info(f"Using first available direct format: {selected_format.get('format_id')}")
 
         if not selected_format or not selected_format.get('url'):
             return {
@@ -212,7 +248,15 @@ def handle_download_url(url, fmt):
 
         direct_url = selected_format['url']
 
-        print(f"Found direct URL: {direct_url[:100]}...")
+        logger.info(f"Found direct URL: {direct_url[:100]}...")
+
+        duration = time.time() - start_time
+        logger.info("Successfully got download URL", extra={
+            "event": "download_url_success",
+            "url": url,
+            "duration": duration,
+            "format_id": selected_format.get('format_id')
+        })
 
         return {
             "statusCode": 200,
@@ -232,6 +276,13 @@ def handle_download_url(url, fmt):
         }
 
 def handle_download(url, fmt):
+    start_time = time.time()
+    logger.info("Starting download", extra={
+        "event": "download_start",
+        "url": url,
+        "format": fmt
+    })
+
     video_id = str(uuid.uuid4())
     ext = "m4a" if fmt == "m4a" else "mp4"
     file_name = f"{str(uuid.uuid4())}.{ext}"
@@ -240,31 +291,45 @@ def handle_download(url, fmt):
     ydl_opts = get_yt_dlp_opts(download_path=download_path, fmt=fmt)
 
     with YoutubeDL(ydl_opts) as ydl:
-        print("Getting video info...")
+        logger.info("Getting video info...")
         info = ydl.extract_info(url, download=False)
-        print(json.dumps(info.get("formats", []), indent=2))
+        # logger.info(json.dumps(info.get("formats", []), indent=2))
 
-        print("Starting downloading...")
+        logger.info("Starting downloading...")
         ydl.download([url])
 
     public_url = f"https://storage.yandexcloud.net/{BUCKET_NAME}/{file_name}"
+
+    duration = time.time() - start_time
+    logger.info("Download completed", extra={
+        "event": "download_success",
+        "url": url,
+        "duration": duration,
+        "public_url": public_url
+    })
     return {
         "statusCode": 200,
         "body": json.dumps({"url": public_url})
     }
 
 def handle_info(url):
+    logger.info("Getting video info", extra={"event": "info_start", "url": url})
+    start_time = time.time()
     ydl_opts = get_yt_dlp_opts()
 
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
 
-    # print("Scraping youtube video title...")
+    # logger.info("Scraping youtube video title...")
     # title = scrape_video_title(url)
-    # print("Scraped youtube title:", title)
+    # logger.info("Scraped youtube title:", title)
     # info["title"] = title
 
-    print("Returning full video info...")
+    logger.info("Returning full video info...", extra={
+        "event": "info_success",
+        "url": url,
+        "duration": time.time() - start_time
+    })
     return {
         "statusCode": 200,
         "headers": {"Content-Type": "application/json"},
@@ -279,28 +344,28 @@ def handle_playlist(url, limit=5):
     ydl_opts = get_yt_dlp_opts(playlistend=limit)
     ydl_opts['ignoreerrors'] = True  # Skip unavailable/private videos
 
-    print("Extracting playlist info...")
+    logger.info("Extracting playlist info...")
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
 
     # `entries` is a list of video‐info dicts
     entries = info.get("entries") or []
-    print("entries length:", len(entries))
+    logger.info("entries length:", extra={"count": len(entries)})
 
     # Filter out any None entries and those without upload_date
     filtered = [e for e in entries if e and e.get("upload_date")]
-    print("filtered entries length:", len(filtered))
+    logger.info("filtered entries length:", extra={"count": len(filtered)})
 
     # Sort by upload_date descending (newest first)
     filtered.sort(key=lambda e: e["upload_date"], reverse=True)
 
     latest = filtered[:limit]
-    print("latest entries length:", len(latest))
+    logger.info("latest entries length:", extra={"count": len(latest)})
 
     # Only return a subset of fields per video
     result = []
     for e in latest:
-        print("element:", e)
+        logger.info("element:", extra={"e": e})
         result.append({
             "id": e.get("id"),
             "title": e.get("title"),

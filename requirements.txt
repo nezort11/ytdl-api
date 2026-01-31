@@ -2,3 +2,4 @@
 # https://pypi.org/project/yt-dlp/
 yt-dlp>=2025.12.8
 python-dotenv
+python-json-logger

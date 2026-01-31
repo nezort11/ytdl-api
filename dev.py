@@ -8,6 +8,10 @@ from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse, JSONResponse
 from env import PROXY_URL
 from main import get_yt_dlp_opts
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 DOWNLOAD_FOLDER = "downloads"
@@ -18,7 +22,7 @@ async def download_video(url: str = Query(..., title="YouTube Video URL")):
     """
     Download a YouTube video and return the file.
     """
-    print('Inside download video endpoint')
+    logger.info('Inside download video endpoint')
     ydl_opts = {
         'outtmpl': os.path.join(DOWNLOAD_FOLDER, '%(title)s.%(ext)s'),
         'format': '18',
@@ -27,12 +31,12 @@ async def download_video(url: str = Query(..., title="YouTube Video URL")):
          # 'merge_output_format': 'mp4',
     }
 
-    print('Started downloading...')
+    logger.info('Started downloading...')
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
         filename = ydl.prepare_filename(info).rsplit(".", 1)[0] + ".mp4"
 
-    print('Returning file response...')
+    logger.info('Returning file response...')
     return FileResponse(filename, media_type='video/mp4', filename=os.path.basename(filename))
 
 @app.get("/info")
@@ -44,7 +48,7 @@ async def get_video_info(url: str = Query(...)):
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
 
-    print('Returning full video info...')
+    logger.info('Returning full video info...')
     return JSONResponse(content=info)
 
 @app.get("/playlist")
@@ -90,6 +94,6 @@ async def get_playlist_info(
 
 if __name__ == "__main__":
     import uvicorn
-    print('Starting uvicorn server...')
+    logger.info('Starting uvicorn server...')
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
