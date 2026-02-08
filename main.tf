@@ -6,6 +6,17 @@ terraform {
       version = "0.138.0"
     }
   }
+
+  backend "s3" {
+    endpoint   = "https://storage.yandexcloud.net"
+    bucket     = "ytdl-terraform-state"
+    region     = "ru-central1"
+    key        = "terraform.tfstate"
+    skip_region_validation      = true
+    skip_credentials_validation = true
+    skip_requesting_account_id  = true # Needed for Yandex Object Storage
+    skip_s3_checksum            = true # Often needed for non-AWS S3
+  }
 }
 
 provider "yandex" {

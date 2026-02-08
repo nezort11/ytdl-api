@@ -1,0 +1,72 @@
+name: Deploy to Yandex Cloud
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "README.md"
+      - ".gitignore"
+
+env:
+  TF_VERSION: "1.5.7"
+  YC_CLOUD_ID: ${{ secrets.YC_CLOUD_ID }}
+  YC_FOLDER_ID: ${{ secrets.YC_FOLDER_ID }}
+  YC_ZONE: "ru-central1-a"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Install YC CLI
+        run: |
+          curl https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
+          echo "/home/runner/yandex-cloud/bin" >> $GITHUB_PATH
+
+      - name: Authenticate YC CLI
+        run: |
+          echo "${{ secrets.YC_SA_JSON }}" > sa-key.json
+          yc config profile create sa-profile
+          yc config set service-account-key sa-key.json
+          yc config set cloud-id ${{ env.YC_CLOUD_ID }}
+          yc config set folder-id ${{ env.YC_FOLDER_ID }}
+
+      - name: Install dependencies and build
+        run: |
+          sudo apt-get update && sudo apt-get install -y zip
+          ./build.sh
+
+      - name: Terraform Init
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          terraform init \
+            -backend-config="access_key=$AWS_ACCESS_KEY_ID" \
+            -backend-config="secret_key=$AWS_SECRET_ACCESS_KEY"
+
+      - name: Terraform Apply
+        env:
+          TF_VAR_yc_token: "" # Not used with SA Key file content? Wait, main.tf expects service_account_key_file.
+          # We need to adjust main.tf to accept a variable for the key file path or content, OR write the key to the expected path.
+          TF_VAR_yc_cloud_id: ${{ secrets.YC_CLOUD_ID }}
+          TF_VAR_yc_folder_id: ${{ secrets.YC_FOLDER_ID }}
+          TF_VAR_service_account_id: ${{ secrets.YC_SERVICE_ACCOUNT_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }} # For S3 backend
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }} # For S3 backend
+        run: |
+          # The main.tf uses service_account_key_file = "${path.module}/sakey.json"
+          # We already wrote sa-key.json in the Auth step, let's move it to match main.tf expectation if needed.
+          mv sa-key.json sakey.json
+
+          terraform apply -auto-approve
